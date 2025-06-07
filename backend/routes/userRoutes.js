@@ -24,7 +24,7 @@ router.put("/request/:requestId", userController.respondToFollowRequest)
 // Get followers and following
 router.get("/connections/:userId?", userController.getConnections)
 
-module.exports = router
+module.exports = router;
 
 
 
