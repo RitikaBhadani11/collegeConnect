@@ -371,7 +371,7 @@
 // }
 const User = require("../models/User");
 const Connection = require("../models/Connection");
-
+const { Profile } = require("../models/Profile")
 // Get connection requests for current user
 exports.getConnectionRequests = async (req, res) => {
   try {
@@ -448,6 +448,7 @@ exports.followUser = async (req, res) => {
 };
 
 // Respond to connection request
+// Respond to connection request
 exports.respondToFollowRequest = async (req, res) => {
   try {
     const requestId = req.params.requestId;
@@ -465,16 +466,36 @@ exports.respondToFollowRequest = async (req, res) => {
 
     if (action === "accept") {
       request.status = "accepted";
-    } else if (action === "reject") {
+      await request.save();
+
+      // Update follower count for recipient (current user)
+      await Profile.findOneAndUpdate(
+        { userId: req.user._id },
+        { $inc: { "stats.followers": 1 } }
+      );
+
+      // Update following count for requester
+      await Profile.findOneAndUpdate(
+        { userId: request.requester },
+        { $inc: { "stats.following": 1 } }
+      );
+
+      return res.json({ 
+        message: "Request accepted", 
+        request,
+        followRequest: request // Include this in response
+      });
+    } 
+    else if (action === "reject") {
       request.status = "rejected";
-    } else {
+      await request.save();
+      return res.json({ message: "Request rejected", request });
+    } 
+    else {
       return res.status(400).json({ message: "Invalid action" });
     }
-
-    await request.save();
-
-    res.json({ message: `Request ${request.status}`, request });
   } catch (error) {
+    console.error("Error responding to request:", error);
     res.status(500).json({ message: "Error responding to request" });
   }
 };

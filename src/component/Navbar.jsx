@@ -17,7 +17,7 @@ const Navbar = ({ notifications = [], unreadCount = 0 }) => {
         const token = localStorage.getItem("token")
         if (!token) return
 
-        const response = await axios.get("http://localhost:5005/api/user", {
+        const response = await axios.get("http://localhost:5005/api/users/me", {
           headers: { Authorization: token },
         })
         setUser(response.data)

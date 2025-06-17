@@ -442,6 +442,33 @@ exports.getPostAuthorProfile = async (req, res) => {
     })
   }
 }
+// controllers/profileController.js
+const Connection = require("../models/Connection");
+
+// Add to your existing exports
+exports.getConnectionStats = async (req, res) => {
+  try {
+    const userId = req.params.userId || req.user._id;
+    
+    const [followersCount, followingCount] = await Promise.all([
+      Connection.countDocuments({ recipient: userId, status: "accepted" }),
+      Connection.countDocuments({ requester: userId, status: "accepted" })
+    ]);
+
+    res.json({
+      success: true,
+      stats: {
+        followers: followersCount,
+        following: followingCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching connection stats"
+    });
+  }
+};
 
 // const { StudentProfile, FacultyProfile, AlumniProfile } = require("../models/Profile");
 // const User = require("../models/User");

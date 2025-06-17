@@ -93,6 +93,8 @@ const eventsRoutes = require("./routes/eventsRoutes");
 const postRoutes = require("./routes/postRoutes");
 const userRoutes = require("./routes/userRoutes");
 const chatRoutes = require('./routes/chatRoutes');
+const viewProfileRoutes = require("./routes/viewProfileRoutes");
+
 const app = express();
 const server = http.createServer(app);
 
@@ -163,6 +165,7 @@ app.use("/api/events", eventsRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/users", userRoutes);
 app.use('/api/chat', chatRoutes);
+app.use("/api/profile", viewProfileRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {

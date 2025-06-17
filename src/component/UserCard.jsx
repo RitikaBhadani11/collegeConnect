@@ -97,42 +97,94 @@
 
 // export default UserCard
 //new
+// "use client";
+
+// const UserCard = ({ user, onFollow }) => {
+//   return (
+//     <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow">
+//       <div className="p-4">
+//         <div className="flex items-center space-x-4">
+//           <div className="flex-shrink-0">
+//             <img
+//               className="h-12 w-12 rounded-full object-cover"
+//               src={user.profilePhotoUrl || "/default-profile.jpg"}
+//               alt={user.name}
+//               onError={(e) => {
+//                 e.target.onerror = null;
+//                 e.target.src = "/default-profile.jpg";
+//               }}
+//             />
+//           </div>
+//           <div className="flex-1 min-w-0">
+//             <p className="text-sm font-medium text-gray-900 truncate">
+//               {user.name}
+//             </p>
+//             <p className="text-sm text-gray-500 truncate">
+//               {user.role === "student" ? user.batch : user.department}
+//             </p>
+//           </div>
+//         </div>
+//       </div>
+//       <div className="bg-gray-50 px-4 py-3 flex justify-end">
+//         <button
+//           onClick={() => onFollow(user._id)}
+//           className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue focus:border-blue-700 active:bg-blue-700 transition duration-150 ease-in-out"
+//         >
+//           Connect
+//         </button>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default UserCard;
 "use client";
 
+import { useState } from "react";
+import ViewProfile from "./ViewProfile";
+
 const UserCard = ({ user, onFollow }) => {
+  const [showProfile, setShowProfile] = useState(false);
+
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
       <div className="p-4">
-        <div className="flex items-center space-x-4">
-          <div className="flex-shrink-0">
-            <img
-              className="h-12 w-12 rounded-full object-cover"
-              src={user.profilePhotoUrl || "/default-profile.jpg"}
-              alt={user.name}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "/default-profile.jpg";
-              }}
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user.name}
-            </p>
-            <p className="text-sm text-gray-500 truncate">
-              {user.role === "student" ? user.batch : user.department}
-            </p>
+        <div className="flex items-center">
+          <img
+            src={user.profilePhoto || "/default-profile.jpg"}
+            alt={user.name}
+            className="w-12 h-12 rounded-full object-cover"
+          />
+          <div className="ml-3">
+            <h3 className="font-semibold">{user.name}</h3>
+            <p className="text-sm text-gray-600 capitalize">{user.role}</p>
           </div>
         </div>
+        
+        {user.batch && (
+          <p className="text-sm text-gray-500 mt-2">Batch: {user.batch}</p>
+        )}
+        
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={() => setShowProfile(true)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+          >
+            View Profile
+          </button>
+          <button
+            onClick={() => onFollow(user._id)}
+            className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            disabled={user.requestSent}
+          >
+            {user.requestSent ? "Request Sent" : "Connect"}
+          </button>
+        </div>
       </div>
-      <div className="bg-gray-50 px-4 py-3 flex justify-end">
-        <button
-          onClick={() => onFollow(user._id)}
-          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue focus:border-blue-700 active:bg-blue-700 transition duration-150 ease-in-out"
-        >
-          Connect
-        </button>
-      </div>
+
+      {showProfile && (
+        <ViewProfile userId={user._id} onClose={() => setShowProfile(false)} />
+      )}
     </div>
   );
 };
