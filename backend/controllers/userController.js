@@ -1,378 +1,8 @@
-// const User = require("../models/User")
-// const { Profile } = require("../models/Profile")
-// const Follow = require("../models/Follow")
-
-// // Search users
-// exports.searchUsers = async (req, res) => {
-//   try {
-//     const { query } = req.query
-//     const currentUserId = req.user._id
-
-//     if (!query) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Search query is required",
-//       })
-//     }
-
-//     // Search for users by name or email, excluding the current user
-//     const users = await User.find({
-//       $and: [
-//         { _id: { $ne: currentUserId } },
-//         {
-//           $or: [{ name: { $regex: query, $options: "i" } }, { email: { $regex: query, $options: "i" } }],
-//         },
-//       ],
-//     }).select("_id name email role batch regNumber facultyId department company passedOutBatch")
-
-//     // Get profiles for the users
-//     const userIds = users.map((user) => user._id)
-//     const profiles = await Profile.find({ userId: { $in: userIds } }).select("userId profilePhoto role")
-
-//     // Map profiles to users
-//     const usersWithProfiles = users.map((user) => {
-//       const userObj = user.toObject()
-//       const profile = profiles.find((p) => p.userId.toString() === user._id.toString())
-
-//       return {
-//         ...userObj,
-//         profilePhoto: profile?.profilePhoto || "",
-//         profilePhotoUrl: profile?.profilePhoto
-//           ? `/uploads/profile/${profile.profilePhoto.split("/").pop()}`
-//           : "/default-profile.jpg",
-//       }
-//     })
-
-//     res.status(200).json({
-//       success: true,
-//       users: usersWithProfiles,
-//     })
-//   } catch (error) {
-//     console.error("Error searching users:", error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
-
-// // Get suggested users
-// exports.getSuggestedUsers = async (req, res) => {
-//   try {
-//     const currentUserId = req.user._id
-//     const currentUser = await User.findById(currentUserId)
-
-//     // Find users with the same role or department/batch
-//     const query = { _id: { $ne: currentUserId } }
-
-//     if (currentUser.role === "student") {
-//       // For students, suggest other students in the same batch or faculty in their department
-//       query.$or = [
-//         { role: "student", batch: currentUser.batch },
-//         { role: "faculty", department: currentUser.department },
-//         { role: "alumni", passedOutBatch: currentUser.batch },
-//       ]
-//     } else if (currentUser.role === "faculty") {
-//       // For faculty, suggest other faculty in the same department or students in their department
-//       query.$or = [
-//         { role: "faculty", department: currentUser.department },
-//         { role: "student", department: currentUser.department },
-//       ]
-//     } else if (currentUser.role === "alumni") {
-//       // For alumni, suggest other alumni from the same batch or company
-//       query.$or = [
-//         { role: "alumni", passedOutBatch: currentUser.passedOutBatch },
-//         { role: "alumni", company: currentUser.company },
-//         { role: "student", batch: currentUser.passedOutBatch },
-//       ]
-//     }
-
-//     // Get users who are not already being followed
-//     const following = await Follow.find({ follower: currentUserId }).select("following")
-//     const followingIds = following.map((f) => f.following)
-
-//     if (followingIds.length > 0) {
-//       query._id.$nin = followingIds
-//     }
-
-//     // Limit to 10 suggested users
-//     const users = await User.find(query)
-//       .select("_id name email role batch regNumber facultyId department company passedOutBatch")
-//       .limit(10)
-
-//     // Get profiles for the users
-//     const userIds = users.map((user) => user._id)
-//     const profiles = await Profile.find({ userId: { $in: userIds } }).select("userId profilePhoto")
-
-//     // Map profiles to users
-//     const usersWithProfiles = users.map((user) => {
-//       const userObj = user.toObject()
-//       const profile = profiles.find((p) => p.userId.toString() === user._id.toString())
-
-//       return {
-//         ...userObj,
-//         profilePhoto: profile?.profilePhoto || "",
-//         profilePhotoUrl: profile?.profilePhoto
-//           ? `/uploads/profile/${profile.profilePhoto.split("/").pop()}`
-//           : "/default-profile.jpg",
-//       }
-//     })
-
-//     res.status(200).json({
-//       success: true,
-//       users: usersWithProfiles,
-//     })
-//   } catch (error) {
-//     console.error("Error getting suggested users:", error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
-
-// // Get connection requests
-// exports.getConnectionRequests = async (req, res) => {
-//   try {
-//     const currentUserId = req.user._id
-
-//     // Find pending follow requests where current user is the target
-//     const requests = await Follow.find({
-//       following: currentUserId,
-//       status: "pending",
-//     }).populate({
-//       path: "follower",
-//       select: "_id name email role",
-//     })
-
-//     // Get profiles for the requesters
-//     const requesterIds = requests.map((req) => req.follower._id)
-//     const profiles = await Profile.find({ userId: { $in: requesterIds } }).select("userId profilePhoto")
-
-//     // Map profiles to requests
-//     const requestsWithProfiles = requests.map((request) => {
-//       const requestObj = request.toObject()
-//       const profile = profiles.find((p) => p.userId.toString() === request.follower._id.toString())
-
-//       return {
-//         ...requestObj,
-//         follower: {
-//           ...requestObj.follower,
-//           profilePhoto: profile?.profilePhoto || "",
-//           profilePhotoUrl: profile?.profilePhoto
-//             ? `/uploads/profile/${profile.profilePhoto.split("/").pop()}`
-//             : "/default-profile.jpg",
-//         },
-//       }
-//     })
-
-//     res.status(200).json({
-//       success: true,
-//       requests: requestsWithProfiles,
-//     })
-//   } catch (error) {
-//     console.error("Error getting connection requests:", error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
-
-// // Follow a user
-// exports.followUser = async (req, res) => {
-//   try {
-//     const { userId } = req.params
-//     const currentUserId = req.user._id
-
-//     // Check if user exists
-//     const userToFollow = await User.findById(userId)
-//     if (!userToFollow) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "User not found",
-//       })
-//     }
-
-//     // Check if already following
-//     const existingFollow = await Follow.findOne({
-//       follower: currentUserId,
-//       following: userId,
-//     })
-
-//     if (existingFollow) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Already following or request pending",
-//       })
-//     }
-
-//     // Create new follow request
-//     const follow = new Follow({
-//       follower: currentUserId,
-//       following: userId,
-//       status: "pending",
-//     })
-
-//     await follow.save()
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Follow request sent",
-//       follow,
-//     })
-//   } catch (error) {
-//     console.error("Error following user:", error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
-
-// // Accept or reject a follow request
-// exports.respondToFollowRequest = async (req, res) => {
-//   try {
-//     const { requestId } = req.params
-//     const { action } = req.body
-//     const currentUserId = req.user._id
-
-//     if (!["accept", "reject"].includes(action)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid action. Must be 'accept' or 'reject'",
-//       })
-//     }
-
-//     // Find the follow request
-//     const followRequest = await Follow.findById(requestId)
-
-//     if (!followRequest) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Follow request not found",
-//       })
-//     }
-
-//     // Verify the current user is the target of the follow request
-//     if (followRequest.following.toString() !== currentUserId.toString()) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Unauthorized to respond to this request",
-//       })
-//     }
-
-//     // Update the status based on the action
-//     followRequest.status = action === "accept" ? "accepted" : "rejected"
-//     await followRequest.save()
-
-//     // If accepted, update follower and following counts in profiles
-//     if (action === "accept") {
-//       await Profile.findOneAndUpdate({ userId: followRequest.following }, { $inc: { "stats.followers": 1 } })
-//       await Profile.findOneAndUpdate({ userId: followRequest.follower }, { $inc: { "stats.following": 1 } })
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: `Follow request ${action}ed`,
-//       followRequest,
-//     })
-//   } catch (error) {
-//     console.error(`Error responding to follow request:`, error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
-
-// // Get following and followers
-// exports.getConnections = async (req, res) => {
-//   try {
-//     const userId = req.params.userId || req.user._id
-
-//     // Get followers (users who follow the specified user)
-//     const followers = await Follow.find({
-//       following: userId,
-//       status: "accepted",
-//     }).populate({
-//       path: "follower",
-//       select: "_id name email role",
-//     })
-
-//     // Get following (users the specified user follows)
-//     const following = await Follow.find({
-//       follower: userId,
-//       status: "accepted",
-//     }).populate({
-//       path: "following",
-//       select: "_id name email role",
-//     })
-
-//     // Get profiles for followers and following
-//     const followerIds = followers.map((f) => f.follower._id)
-//     const followingIds = following.map((f) => f.following._id)
-//     const allUserIds = [...new Set([...followerIds, ...followingIds])]
-
-//     const profiles = await Profile.find({ userId: { $in: allUserIds } }).select("userId profilePhoto")
-
-//     // Map profiles to followers
-//     const followersWithProfiles = followers.map((follow) => {
-//       const followObj = follow.toObject()
-//       const profile = profiles.find((p) => p.userId.toString() === follow.follower._id.toString())
-
-//       return {
-//         ...followObj,
-//         follower: {
-//           ...followObj.follower,
-//           profilePhoto: profile?.profilePhoto || "",
-//           profilePhotoUrl: profile?.profilePhoto
-//             ? `/uploads/profile/${profile.profilePhoto.split("/").pop()}`
-//             : "/default-profile.jpg",
-//         },
-//       }
-//     })
-
-//     // Map profiles to following
-//     const followingWithProfiles = following.map((follow) => {
-//       const followObj = follow.toObject()
-//       const profile = profiles.find((p) => p.userId.toString() === follow.following._id.toString())
-
-//       return {
-//         ...followObj,
-//         following: {
-//           ...followObj.following,
-//           profilePhoto: profile?.profilePhoto || "",
-//           profilePhotoUrl: profile?.profilePhoto
-//             ? `/uploads/profile/${profile.profilePhoto.split("/").pop()}`
-//             : "/default-profile.jpg",
-//         },
-//       }
-//     })
-
-//     res.status(200).json({
-//       success: true,
-//       followers: followersWithProfiles,
-//       following: followingWithProfiles,
-//     })
-//   } catch (error) {
-//     console.error("Error getting connections:", error)
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     })
-//   }
-// }
 const User = require("../models/User");
 const Connection = require("../models/Connection");
-const { Profile } = require("../models/Profile")
-// Get connection requests for current user
+const { Profile } = require("../models/Profile");
+
+// Get connection requests
 exports.getConnectionRequests = async (req, res) => {
   try {
     const requests = await Connection.find({
@@ -386,7 +16,7 @@ exports.getConnectionRequests = async (req, res) => {
   }
 };
 
-// Get suggested users (non-friends, not pending)
+// Get suggested users
 exports.getSuggestedUsers = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -400,10 +30,7 @@ exports.getSuggestedUsers = async (req, res) => {
     );
 
     const suggestedUsers = await User.find({
-      _id: {
-        $ne: userId,
-        $nin: connectedUserIds,
-      },
+      _id: { $ne: userId, $nin: connectedUserIds },
     })
       .select("name email role profilePhotoUrl department batch")
       .limit(10);
@@ -414,101 +41,103 @@ exports.getSuggestedUsers = async (req, res) => {
   }
 };
 
-// Send connection request
+// Send follow request
 exports.followUser = async (req, res) => {
   try {
-    const recipientId = req.params.userId;
     const requesterId = req.user._id;
+    const recipientId = req.params.userId;
 
-    if (recipientId === requesterId.toString()) {
-      return res.status(400).json({ message: "Cannot send request to yourself" });
+    if (requesterId.toString() === recipientId) {
+      return res.status(400).json({ message: "You cannot follow yourself" });
     }
 
-    const existingRequest = await Connection.findOne({
-      requester: requesterId,
-      recipient: recipientId,
+    const existing = await Connection.findOne({
+      $or: [
+        { requester: requesterId, recipient: recipientId },
+        { requester: recipientId, recipient: requesterId }
+      ]
     });
 
-    if (existingRequest) {
-      return res.status(400).json({ message: "Request already sent" });
+    if (existing) {
+      return res.status(400).json({ message: "Connection already exists or pending" });
     }
 
     const connection = new Connection({
       requester: requesterId,
       recipient: recipientId,
-      status: "pending",
+      status: "pending"
     });
 
     await connection.save();
 
-    res.json({ message: "Connection request sent", connection });
+    res.status(200).json({ success: true, message: "Follow request sent" });
   } catch (error) {
-    res.status(500).json({ message: "Error sending connection request" });
+    console.error("❌ Error in followUser:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };
 
-// Respond to connection request
-// Respond to connection request
+// ✅ Respond to follow request (accept/reject)
 exports.respondToFollowRequest = async (req, res) => {
   try {
-    const requestId = req.params.requestId;
-    const action = req.body.action; // "accept" or "reject"
+    const { requestId } = req.params;
+    const { action } = req.body;
+    const userId = req.user._id;
 
     const request = await Connection.findById(requestId);
-
     if (!request) {
-      return res.status(404).json({ message: "Request not found" });
+      return res.status(404).json({ success: false, message: "Request not found" });
     }
 
-    if (!request.recipient.equals(req.user._id)) {
-      return res.status(403).json({ message: "Not authorized to respond to this request" });
+    if (!request.recipient.equals(userId)) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
     if (action === "accept") {
       request.status = "accepted";
       await request.save();
 
-      // Update follower count for recipient (current user)
-      await Profile.findOneAndUpdate(
-        { userId: req.user._id },
-        { $inc: { "stats.followers": 1 } }
-      );
+      console.log("✅ Accepting connection between:", userId, "and", request.requester);
 
-      // Update following count for requester
-      await Profile.findOneAndUpdate(
-        { userId: request.requester },
-        { $inc: { "stats.following": 1 } }
-      );
+      // Always increment both users' connection count
+      const [res1, res2] = await Promise.all([
+        Profile.findOneAndUpdate(
+          { userId },
+          { $inc: { "stats.connections": 1 } },
+          { new: true, upsert: true }
+        ),
+        Profile.findOneAndUpdate(
+          { userId: request.requester },
+          { $inc: { "stats.connections": 1 } },
+          { new: true, upsert: true }
+        ),
+      ]);
 
-      return res.json({ 
-        message: "Request accepted", 
-        request,
-        followRequest: request // Include this in response
-      });
-    } 
-    else if (action === "reject") {
-      request.status = "rejected";
-      await request.save();
-      return res.json({ message: "Request rejected", request });
-    } 
-    else {
-      return res.status(400).json({ message: "Invalid action" });
+      console.log("🔁 Updated profiles:", res1?._id, res2?._id);
+
+      return res.status(200).json({ success: true, message: "Connection accepted" });
     }
+
+    if (action === "reject") {
+      await Connection.findByIdAndDelete(requestId);
+      return res.status(200).json({ success: true, message: "Request rejected" });
+    }
+
+    res.status(400).json({ success: false, message: "Invalid action" });
+
   } catch (error) {
-    console.error("Error responding to request:", error);
-    res.status(500).json({ message: "Error responding to request" });
+    console.error("❌ Error responding to follow request:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };
 
-// Search users (excluding already connected)
+// Search users (excluding connected)
 exports.searchUsers = async (req, res) => {
   try {
     const query = req.query.query;
     const userId = req.user._id;
 
-    if (!query) {
-      return res.status(400).json({ message: "Search query required" });
-    }
+    if (!query) return res.status(400).json({ message: "Search query required" });
 
     const connections = await Connection.find({
       $or: [{ requester: userId }, { recipient: userId }],
@@ -562,5 +191,32 @@ exports.getConnections = async (req, res) => {
     res.json({ followers, following });
   } catch (error) {
     res.status(500).json({ message: "Error fetching connections" });
+  }
+};
+
+// Check if connection exists
+exports.checkConnectionStatus = async (req, res) => {
+  try {
+    const userId1 = req.user._id;
+    const userId2 = req.params.userId;
+
+    const connection = await Connection.findOne({
+      $or: [
+        { requester: userId1, recipient: userId2 },
+        { requester: userId2, recipient: userId1 },
+      ]
+    });
+
+    if (!connection) {
+      return res.json({ exists: false });
+    }
+
+    return res.json({
+      exists: true,
+      status: connection.status
+    });
+  } catch (error) {
+    console.error("Error checking connection status:", error);
+    res.status(500).json({ message: "Error checking connection status" });
   }
 };

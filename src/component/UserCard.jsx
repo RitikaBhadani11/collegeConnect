@@ -137,8 +137,7 @@
 //   );
 // };
 
-// export default UserCard;
-"use client";
+// export default UserCard;"use client";
 
 import { useState } from "react";
 import ViewProfile from "./ViewProfile";
@@ -146,25 +145,33 @@ import ViewProfile from "./ViewProfile";
 const UserCard = ({ user, onFollow }) => {
   const [showProfile, setShowProfile] = useState(false);
 
+  const name = user?.name || "Unnamed User";
+  const role = user?.role || "User";
+  const profilePhoto = user?.profilePhotoUrl || user?.profilePhoto || "/default-profile.jpg";
+  const batch = user?.batch;
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       <div className="p-4">
+        {/* Profile Info */}
         <div className="flex items-center">
           <img
-            src={user.profilePhoto || "/default-profile.jpg"}
-            alt={user.name}
+            src={profilePhoto}
+            alt={name}
             className="w-12 h-12 rounded-full object-cover"
           />
           <div className="ml-3">
-            <h3 className="font-semibold">{user.name}</h3>
-            <p className="text-sm text-gray-600 capitalize">{user.role}</p>
+            <h3 className="font-semibold text-gray-800">{name}</h3>
+            <p className="text-sm text-gray-600 capitalize">{role}</p>
           </div>
         </div>
-        
-        {user.batch && (
-          <p className="text-sm text-gray-500 mt-2">Batch: {user.batch}</p>
+
+        {/* Optional Batch Display */}
+        {batch && (
+          <p className="text-sm text-gray-500 mt-2">Batch: {batch}</p>
         )}
-        
+
+        {/* Actions */}
         <div className="mt-4 flex gap-2">
           <button
             onClick={() => setShowProfile(true)}
@@ -172,17 +179,23 @@ const UserCard = ({ user, onFollow }) => {
           >
             View Profile
           </button>
+
           <button
             onClick={() => onFollow(user._id)}
-            className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            disabled={user.requestSent}
+            className={`flex-1 px-3 py-2 rounded-md ${
+              user?.requestSent
+                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+            disabled={user?.requestSent}
           >
-            {user.requestSent ? "Request Sent" : "Connect"}
+            {user?.requestSent ? "Request Sent" : "Connect"}
           </button>
         </div>
       </div>
 
-      {showProfile && (
+      {/* View Profile Modal */}
+      {showProfile && user?._id && (
         <ViewProfile userId={user._id} onClose={() => setShowProfile(false)} />
       )}
     </div>

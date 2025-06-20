@@ -1,31 +1,24 @@
+// routes/profileRoutes.js
 const express = require('express');
 const router = express.Router();
-const { authMiddleware } = require('../middleware/authMiddleware');
+const { authMiddleware } = require('../middleware/authmiddleware');
 const profileController = require('../controllers/profileController');
 const upload = require('../middleware/uploadMiddleware');
 
-// Configure multer for multiple file uploads
 const profileUpload = upload.fields([
   { name: 'profilePhoto', maxCount: 1 },
   { name: 'coverPhoto', maxCount: 1 }
 ]);
-// Profile routes
+
+// Connection routes
 router.put('/:userId/increment-post-count', authMiddleware, profileController.incrementPostCount);
-router.put('/:userId/increment-followers', authMiddleware, profileController.incrementFollowerCount);
-router.put('/:userId/increment-following', authMiddleware, profileController.incrementFollowingCount);
+
+router.get('/:userId/connections', authMiddleware, profileController.getUserConnections);
+router.delete('/connections/:connectionId', authMiddleware, profileController.removeConnection);
 router.put('/:userId/decrement-post-count', profileController.decrementPostCount);
-
-// Get current user's profile
-router.get('/me', authMiddleware, profileController.getProfile);
-
-// Get profile by post author ID (for clicking on post author)
-// This route must come before the /:userId route to avoid conflicts
+// Existing profile routes
 router.get('/author/:userId', profileController.getPostAuthorProfile);
-
-// Get profile by user ID
-router.get('/:userId', profileController.getProfile);
-
-// Create or update profile
+router.get('/me', authMiddleware, profileController.getMyProfile); // ✅ Correct function name
 router.post('/update', authMiddleware, profileUpload, profileController.updateProfile);
 
 module.exports = router;
