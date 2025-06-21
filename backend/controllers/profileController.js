@@ -127,6 +127,7 @@ exports.updateProfile = async (req, res) => {
 
     const existingProfile = await Profile.findOne({ userId });
 
+    // Handle file uploads
     if (req.files) {
       if (req.files.profilePhoto?.[0]) {
         const profilePhotoFile = req.files.profilePhoto[0];
@@ -151,13 +152,16 @@ exports.updateProfile = async (req, res) => {
       }
     }
 
+    // Add role-specific data
     let roleSpecificData = {};
     switch (user.role) {
       case "student":
         roleSpecificData = {
           branch: req.body.branch || "",
           yearOfStudy: req.body.yearOfStudy || "",
-          resumeLink: req.body.resumeLink || ""
+          resumeLink: req.body.resumeLink || "",
+          batch: req.body.batch || "",
+          regNumber: req.body.regNumber || "",
         };
         break;
       case "faculty":
@@ -166,7 +170,8 @@ exports.updateProfile = async (req, res) => {
           designation: req.body.designation || "",
           researchInterests: Array.isArray(req.body.researchInterests)
             ? req.body.researchInterests
-            : (req.body.researchInterests || "").split(",").map(s => s.trim())
+            : (req.body.researchInterests || "").split(",").map(s => s.trim()),
+          facultyId: req.body.facultyId || "",
         };
         break;
       case "alumni":
@@ -174,7 +179,8 @@ exports.updateProfile = async (req, res) => {
           currentJobTitle: req.body.currentJobTitle || "",
           company: req.body.company || "",
           graduationYear: req.body.graduationYear || "",
-          linkedinProfile: req.body.linkedinProfile || ""
+          linkedinProfile: req.body.linkedinProfile || "",
+          passedOutBatch: req.body.passedOutBatch || "",
         };
         break;
       default:
@@ -183,17 +189,23 @@ exports.updateProfile = async (req, res) => {
 
     const updatedData = { ...profileData, ...roleSpecificData };
 
+    // Use correct model based on role
+    const ProfileModel = user.role === "student" ? StudentProfile :
+                         user.role === "faculty" ? FacultyProfile :
+                         AlumniProfile;
+
     let profile;
     if (existingProfile) {
-      profile = await Profile.findOneAndUpdate({ userId }, { $set: updatedData }, { new: true });
+      profile = await ProfileModel.findOneAndUpdate({ userId }, { $set: updatedData }, { new: true });
     } else {
-      const ProfileModel = user.role === "student" ? StudentProfile : user.role === "faculty" ? FacultyProfile : AlumniProfile;
       profile = await ProfileModel.create(updatedData);
     }
 
     const responseProfile = profile.toObject();
-    if (profile.profilePhoto) responseProfile.profilePhotoUrl = `/uploads/profile/${path.basename(profile.profilePhoto)}`;
-    if (profile.coverPhoto) responseProfile.coverPhotoUrl = `/uploads/cover/${path.basename(profile.coverPhoto)}`;
+    if (profile.profilePhoto)
+      responseProfile.profilePhotoUrl = `/uploads/profile/${path.basename(profile.profilePhoto)}`;
+    if (profile.coverPhoto)
+      responseProfile.coverPhotoUrl = `/uploads/cover/${path.basename(profile.coverPhoto)}`;
 
     res.status(200).json({ success: true, profile: responseProfile, message: "Profile updated successfully" });
   } catch (error) {
@@ -201,6 +213,7 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };
+
 
 // Get profile by post author ID
 exports.getPostAuthorProfile = async (req, res) => {

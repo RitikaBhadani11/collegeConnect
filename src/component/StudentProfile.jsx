@@ -13,13 +13,14 @@ const StudentProfile = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [connectionStatus, setConnectionStatus] = useState("Checking...")
+
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
-    branch: "Computer Science and Engineering",
-    yearOfStudy: "Third Year",
-    skills: "Java, React, Node.js",
-    resumeLink: "drive.google.com/ritika-resume",
+    branch: "",
+    yearOfStudy: "",
+    skills: "",
+    resumeLink: "",
     about: "",
     stats: { followers: 0, following: 0, posts: 0, connections: 0 },
   })
@@ -69,10 +70,10 @@ const StudentProfile = () => {
         setProfileData({
           name: profile.name || "",
           email: profile.email || "",
-          branch: profile.branch || "Computer Science and Engineering",
-          yearOfStudy: profile.yearOfStudy || "Third Year",
-          skills: Array.isArray(profile.skills) ? profile.skills.join(", ") : "Java, React, Node.js",
-          resumeLink: profile.resumeLink || "drive.google.com/ritika-resume",
+          branch: profile.branch || "",
+          yearOfStudy: profile.yearOfStudy || "",
+          skills: Array.isArray(profile.skills) ? profile.skills.join(", ") : profile.skills || "",
+          resumeLink: profile.resumeLink || "",
           about: profile.about || "",
           stats: profile.stats || { followers: 0, following: 0, posts: 0, connections: 0 },
         })
@@ -203,56 +204,28 @@ const StudentProfile = () => {
 
       <div className="mt-10 p-6 max-w-xl mx-auto bg-white rounded-xl shadow-xl transform transition duration-500 hover:scale-105">
         <div className="space-y-6">
-          <div>
-            <label className="block text-xl font-medium text-green-600 mb-2">Branch</label>
-            <input
-              type="text"
-              name="branch"
-              value={profileData.branch}
-              onChange={handleChange}
-              className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-green-600 mb-2">Year of Study</label>
-            <input
-              type="text"
-              name="yearOfStudy"
-              value={profileData.yearOfStudy}
-              onChange={handleChange}
-              className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-green-600 mb-2">Skills</label>
-            <input
-              type="text"
-              name="skills"
-              value={profileData.skills}
-              onChange={handleChange}
-              className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-green-600 mb-2">Resume Link</label>
-            <input
-              type="text"
-              name="resumeLink"
-              value={profileData.resumeLink}
-              onChange={handleChange}
-              className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-green-600 mb-2">About</label>
-            <textarea
-              name="about"
-              value={profileData.about}
-              onChange={handleChange}
-              className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
-              rows="4"
-            />
-          </div>
+          {["branch", "yearOfStudy", "skills", "resumeLink", "about"].map((field) => (
+            <div key={field}>
+              <label className="block text-xl font-medium text-green-600 mb-2 capitalize">{field.replace(/([A-Z])/g, " $1")}</label>
+              {field === "about" ? (
+                <textarea
+                  name={field}
+                  value={profileData[field]}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
+                  rows="4"
+                />
+              ) : (
+                <input
+                  type="text"
+                  name={field}
+                  value={profileData[field]}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-green-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 transition duration-200"
+                />
+              )}
+            </div>
+          ))}
 
           <div className="flex justify-center mt-8">
             <button

@@ -3,8 +3,10 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
-import { FiMessageCircle, FiUserPlus, FiLink, FiX, FiMapPin, FiBriefcase, FiBook, FiAward } from "react-icons/fi";
-import { FaGraduationCap, FaUniversity, FaRegBuilding } from "react-icons/fa";
+import {
+  FiMessageCircle, FiLink, FiX, FiMapPin, FiBriefcase, FiBook, FiAward
+} from "react-icons/fi";
+import { FaUniversity, FaRegBuilding } from "react-icons/fa";
 import { RiContactsBookLine } from "react-icons/ri";
 
 const ViewProfile = ({ userId, onClose }) => {
@@ -18,9 +20,7 @@ const ViewProfile = ({ userId, onClose }) => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(`http://localhost:5005/api/profile/${userId}`, {
-          headers: {
-            Authorization: token,
-          },
+          headers: { Authorization: token },
         });
         setProfile(res.data);
       } catch (error) {
@@ -37,21 +37,6 @@ const ViewProfile = ({ userId, onClose }) => {
   const handleMessageClick = () => {
     navigate(`/chat?userId=${userId}`);
     if (onClose) onClose();
-  };
-
-  const handleConnect = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      await axios.post(`http://localhost:5005/api/users/connect/${userId}`, {}, {
-        headers: {
-          Authorization: token,
-        }
-      });
-      toast.success("Connection request sent!");
-    } catch (error) {
-      console.error("Error sending connection request:", error);
-      toast.error("Failed to send connection request");
-    }
   };
 
   if (loading) {
@@ -92,14 +77,18 @@ const ViewProfile = ({ userId, onClose }) => {
         </button>
 
         <div className="p-6">
-          {/* Profile Header */}
           <div className="flex flex-col md:flex-row items-start gap-8">
             <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden mx-auto md:mx-0">
               <img
-                src={profile.profilePhotoUrl || "https://via.placeholder.com/150"}
+                src={
+                  profile.profilePhotoUrl
+                    ? `http://localhost:5005${profile.profilePhotoUrl}`
+                    : "https://via.placeholder.com/150"
+                }
                 alt={profile.name}
                 className="w-full h-full object-cover"
                 onError={(e) => {
+                  e.target.onerror = null;
                   e.target.src = "https://via.placeholder.com/150";
                 }}
               />
@@ -119,7 +108,7 @@ const ViewProfile = ({ userId, onClose }) => {
                     }`}>
                       {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
                     </span>
-                    {profile.role === "student" && profile.batch && (
+                    {profile.batch && (
                       <span className="text-gray-500 text-sm flex items-center gap-1">
                         <FiAward size={14} /> Batch: {profile.batch}
                       </span>
@@ -134,12 +123,6 @@ const ViewProfile = ({ userId, onClose }) => {
 
                 {currentUser && currentUser._id !== userId && (
                   <div className="flex gap-3 justify-center md:justify-start">
-                    <button 
-                      onClick={handleConnect}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 transition-all"
-                    >
-                      <FiUserPlus size={18} /> Connect
-                    </button>
                     <button
                       onClick={handleMessageClick}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2 transition-all"
@@ -149,19 +132,9 @@ const ViewProfile = ({ userId, onClose }) => {
                   </div>
                 )}
               </div>
-
-              <div className="flex gap-6 mt-6 justify-center md:justify-start">
-                {["followers", "following", "posts"].map((key) => (
-                  <div key={key} className="text-center">
-                    <p className="text-2xl font-bold text-gray-800">{profile.stats?.[key] || 0}</p>
-                    <p className="text-gray-500 text-sm capitalize">{key}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
-          {/* About Section */}
           {profile.about && (
             <div className="mt-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
               <h3 className="text-xl font-semibold mb-3 text-gray-800 flex items-center gap-2">
@@ -171,9 +144,7 @@ const ViewProfile = ({ userId, onClose }) => {
             </div>
           )}
 
-          {/* Information Sections */}
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Main Info */}
             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
               <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
                 {profile.role === "student" && <FiBook />}
@@ -232,12 +203,12 @@ const ViewProfile = ({ userId, onClose }) => {
               {profile.role === "alumni" && (
                 <>
                   <Info label="Company" value={profile.company} icon={<FaRegBuilding size={16} />} />
-                  <Info label="Job Title" value={profile.jobTitle} icon={<FiBriefcase size={16} />} />
-                  <Info label="Experience" value={profile.experience} icon={<FiAward size={16} />} />
-                  {profile.linkedin && (
+                  <Info label="Job Title" value={profile.currentJobTitle} icon={<FiBriefcase size={16} />} />
+                  <Info label="Graduation Year" value={profile.graduationYear} icon={<FiAward size={16} />} />
+                  {profile.linkedinProfile && (
                     <div className="mt-4">
                       <a
-                        href={profile.linkedin}
+                        href={profile.linkedinProfile}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-500 hover:text-blue-600 text-sm flex items-center gap-2 transition-all"
@@ -250,15 +221,14 @@ const ViewProfile = ({ userId, onClose }) => {
               )}
             </div>
 
-            {/* Additional Info */}
             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
               <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
                 <FiBriefcase /> Additional Information
               </h3>
-              
+
               <Info label="Email" value={profile.email} icon={<FiLink size={16} />} />
               <Info label="Phone" value={profile.phone || "Not specified"} icon={<FiLink size={16} />} />
-              
+
               {profile.skills?.length > 0 && (
                 <div className="mt-4">
                   <div className="text-sm text-gray-500 mb-2 flex items-center gap-2">

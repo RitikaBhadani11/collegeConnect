@@ -1,175 +1,169 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import axios from "axios"
-import ProfileHeader from "./ProfileHeader"
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import ProfileHeader from "./ProfileHeader";
 
-const API_BASE_URL = "http://localhost:5005" // Backend server URL
+const API_BASE_URL = "http://localhost:5005";
 
 const FacultyProfile = () => {
-  const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-  const [connectionStatus, setConnectionStatus] = useState("Checking...")
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState("Checking...");
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
-    department: "Data Science and AI",
-    designation: "Associate Professor",
-    researchInterests: "Machine Learning, Computer Vision, Healthcare AI",
+    department: "",
+    designation: "",
+    researchInterests: "",
     about: "",
     stats: { followers: 0, following: 0, posts: 0 },
-  })
+  });
 
-  const [profilePhoto, setProfilePhoto] = useState(null)
-  const [coverPhoto, setCoverPhoto] = useState(null)
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState("")
-  const [coverPhotoUrl, setCoverPhotoUrl] = useState("")
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [coverPhoto, setCoverPhoto] = useState(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState("");
 
   const testConnection = async () => {
     try {
-      await axios.get(`${API_BASE_URL}/api/test`, { timeout: 5000 })
-      setConnectionStatus("Connected")
-      return true
+      await axios.get(`${API_BASE_URL}/api/test`, { timeout: 5000 });
+      setConnectionStatus("Connected");
+      return true;
     } catch (error) {
-      console.error("Connection test failed:", error)
-      setConnectionStatus("Disconnected")
-      return false
+      console.error("Connection test failed:", error);
+      setConnectionStatus("Disconnected");
+      return false;
     }
-  }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        setLoading(true)
-        setError(null)
-        const token = localStorage.getItem("token")
+        setLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem("token");
         if (!token) {
-          navigate("/login")
-          return
+          navigate("/login");
+          return;
         }
 
-        const isConnected = await testConnection()
+        const isConnected = await testConnection();
         if (!isConnected) {
-          setError("Cannot connect to the server. Please make sure the backend is running at " + API_BASE_URL)
-          setLoading(false)
-          return
+          setError(`Cannot connect to backend at ${API_BASE_URL}`);
+          return;
         }
 
         const response = await axios.get(`${API_BASE_URL}/api/profiles/me`, {
           headers: { Authorization: `Bearer ${token}` },
-        })
+        });
 
-        const { profile } = response.data
+        const { profile } = response.data;
 
         setProfileData({
           name: profile.name || "",
           email: profile.email || "",
-          department: profile.department || "Data Science and AI",
-          designation: profile.designation || "Associate Professor",
+          department: profile.department || "",
+          designation: profile.designation || "",
           researchInterests: Array.isArray(profile.researchInterests)
             ? profile.researchInterests.join(", ")
-            : "Machine Learning, Computer Vision, Healthcare AI",
+            : profile.researchInterests || "",
           about: profile.about || "",
           stats: profile.stats || { followers: 0, following: 0, posts: 0 },
-        })
+        });
 
-        if (profile.profilePhotoUrl) {
-          setProfilePhotoUrl(`${API_BASE_URL}${profile.profilePhotoUrl}`)
-        }
-
-        if (profile.coverPhotoUrl) {
-          setCoverPhotoUrl(`${API_BASE_URL}${profile.coverPhotoUrl}`)
-        }
+        if (profile.profilePhotoUrl)
+          setProfilePhotoUrl(`${API_BASE_URL}${profile.profilePhotoUrl}`);
+        if (profile.coverPhotoUrl)
+          setCoverPhotoUrl(`${API_BASE_URL}${profile.coverPhotoUrl}`);
       } catch (error) {
-        console.error("Error fetching profile:", error)
+        console.error("Profile fetch error:", error);
         if (error.code === "ERR_NETWORK") {
-          setError("Network error: Cannot connect to the server. Please make sure the backend is running at " + API_BASE_URL)
+          setError("Cannot connect to server. Please ensure the backend is running.");
         } else {
-          setError("Failed to load profile data: " + (error.response?.data?.message || error.message))
+          setError("Failed to fetch profile: " + (error.response?.data?.message || error.message));
         }
-
         if (error.response?.status === 401) {
-          localStorage.removeItem("token")
-          navigate("/login")
+          localStorage.removeItem("token");
+          navigate("/login");
         }
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchProfile()
-    const interval = setInterval(testConnection, 10000)
-    return () => clearInterval(interval)
-  }, [navigate])
+    fetchProfile();
+    const interval = setInterval(testConnection, 10000);
+    return () => clearInterval(interval);
+  }, [navigate]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setProfileData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setProfileData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handlePhotoChange = (type, file) => {
-    if (type === "profile") setProfilePhoto(file)
-    else if (type === "cover") setCoverPhoto(file)
-  }
+    if (type === "profile") setProfilePhoto(file);
+    else if (type === "cover") setCoverPhoto(file);
+  };
 
   const handleSave = async () => {
     try {
-      setSaving(true)
-      setError(null)
-      const token = localStorage.getItem("token")
+      setSaving(true);
+      setError(null);
+
+      const token = localStorage.getItem("token");
       if (!token) {
-        navigate("/login")
-        return
+        navigate("/login");
+        return;
       }
 
-      const isConnected = await testConnection()
+      const isConnected = await testConnection();
       if (!isConnected) {
-        setError("Cannot connect to the server. Please make sure the backend is running at " + API_BASE_URL)
-        setSaving(false)
-        return
+        setError("Cannot connect to server. Save aborted.");
+        return;
       }
 
-      const formData = new FormData()
-      formData.append("name", profileData.name)
-      formData.append("email", profileData.email)
-      formData.append("department", profileData.department)
-      formData.append("designation", profileData.designation)
-      formData.append("researchInterests", profileData.researchInterests)
-      formData.append("about", profileData.about)
+      const formData = new FormData();
+      Object.entries(profileData).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
 
-      if (profilePhoto) formData.append("profilePhoto", profilePhoto)
-      if (coverPhoto) formData.append("coverPhoto", coverPhoto)
+      if (profilePhoto) formData.append("profilePhoto", profilePhoto);
+      if (coverPhoto) formData.append("coverPhoto", coverPhoto);
 
       const response = await axios.post(`${API_BASE_URL}/api/profiles/update`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
-      })
+      });
 
       if (response.data.success) {
-        alert("Profile saved successfully!")
-        if (response.data.profile.profilePhotoUrl)
-          setProfilePhotoUrl(`${API_BASE_URL}${response.data.profile.profilePhotoUrl}`)
-        if (response.data.profile.coverPhotoUrl)
-          setCoverPhotoUrl(`${API_BASE_URL}${response.data.profile.coverPhotoUrl}`)
+        alert("Profile saved successfully!");
+        const { profile } = response.data;
+        if (profile.profilePhotoUrl)
+          setProfilePhotoUrl(`${API_BASE_URL}${profile.profilePhotoUrl}`);
+        if (profile.coverPhotoUrl)
+          setCoverPhotoUrl(`${API_BASE_URL}${profile.coverPhotoUrl}`);
       } else {
-        setError("Failed to save profile: " + (response.data.message || "Unknown error"))
+        setError("Failed to save profile: " + (response.data.message || "Unknown error"));
       }
     } catch (error) {
-      console.error("Error saving profile:", error)
+      console.error("Save error:", error);
       if (error.code === "ERR_NETWORK") {
-        setError("Network error: Cannot connect to the server. Please make sure the backend is running at " + API_BASE_URL)
+        setError("Cannot connect to server. Please ensure the backend is up.");
       } else {
-        setError("Failed to save profile: " + (error.response?.data?.message || error.message))
+        setError("Save failed: " + (error.response?.data?.message || error.message));
       }
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -177,11 +171,11 @@ const FacultyProfile = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500"></div>
         <p className="ml-2">Loading profile...</p>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-yellow-100 to-orange-200 text-gray-800 font-sans">
+    <div className="min-h-screen bg-gradient-to-r from-yellow-100 to-orange-200 text-gray-800">
       <ProfileHeader
         name={profileData.name}
         email={profileData.email}
@@ -199,54 +193,41 @@ const FacultyProfile = () => {
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4 mx-auto max-w-xl" role="alert">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4 max-w-xl mx-auto">
           <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
+          <span>{error}</span>
         </div>
       )}
 
       <div className="mt-10 p-6 max-w-xl mx-auto bg-white rounded-xl shadow-xl transform transition duration-500 hover:scale-105">
         <div className="space-y-6">
-          <div>
-            <label className="block text-xl font-medium text-yellow-600 mb-2">Department</label>
-            <input
-              type="text"
-              name="department"
-              value={profileData.department}
-              onChange={handleChange}
-              className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-yellow-600 mb-2">Designation</label>
-            <input
-              type="text"
-              name="designation"
-              value={profileData.designation}
-              onChange={handleChange}
-              className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-yellow-600 mb-2">Research Interests</label>
-            <textarea
-              rows="3"
-              name="researchInterests"
-              value={profileData.researchInterests}
-              onChange={handleChange}
-              className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            ></textarea>
-          </div>
-          <div>
-            <label className="block text-xl font-medium text-yellow-600 mb-2">About</label>
-            <textarea
-              rows="3"
-              name="about"
-              value={profileData.about}
-              onChange={handleChange}
-              className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            ></textarea>
-          </div>
+          {[
+            { label: "Department", name: "department" },
+            { label: "Designation", name: "designation" },
+            { label: "Research Interests", name: "researchInterests", textarea: true },
+            { label: "About", name: "about", textarea: true },
+          ].map(({ label, name, textarea }) => (
+            <div key={name}>
+              <label className="block text-xl font-medium text-yellow-600 mb-2">{label}</label>
+              {textarea ? (
+                <textarea
+                  rows="3"
+                  name={name}
+                  value={profileData[name]}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                ></textarea>
+              ) : (
+                <input
+                  type="text"
+                  name={name}
+                  value={profileData[name]}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-yellow-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                />
+              )}
+            </div>
+          ))}
 
           <div className="flex justify-center mt-8">
             <button
@@ -264,7 +245,7 @@ const FacultyProfile = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default FacultyProfile
+export default FacultyProfile;
