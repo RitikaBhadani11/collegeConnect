@@ -38,7 +38,6 @@ exports.decrementPostCount = async (req, res) => {
   }
 };
 
-
 exports.getMyProfile = async (req, res) => {
   try {
     const userId = req.params.userId || req.user._id;
@@ -61,13 +60,16 @@ exports.getMyProfile = async (req, res) => {
       return res.status(200).json({
         success: true,
         profile: {
+          userId: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
           stats: {
             connections: connectionCount,
             posts: 0
-          }
+          },
+          profilePhotoUrl: '/default-profile.jpg',
+          coverPhotoUrl: '/default-cover.jpg'
         }
       });
     }
@@ -80,19 +82,27 @@ exports.getMyProfile = async (req, res) => {
       ]
     });
 
-    // Build profilePhoto and coverPhoto URLs if present
-    if (profile.profilePhoto)
-      profile.profilePhotoUrl = `/uploads/profile/${path.basename(profile.profilePhoto)}`;
-    if (profile.coverPhoto)
-      profile.coverPhotoUrl = `/uploads/cover/${path.basename(profile.coverPhoto)}`;
+    // Build profilePhoto and coverPhoto URLs
+    const profilePhotoUrl = profile.profilePhoto 
+      ? `/uploads/profile/${path.basename(profile.profilePhoto)}` 
+      : '/default-profile.jpg';
+    
+    const coverPhotoUrl = profile.coverPhoto 
+      ? `/uploads/cover/${path.basename(profile.coverPhoto)}` 
+      : '/default-cover.jpg';
 
     // Update stats with live connection count
-    profile.stats = {
-      ...profile.stats,
-      connections: connectionCount
+    const updatedProfile = {
+      ...profile,
+      stats: {
+        ...profile.stats,
+        connections: connectionCount
+      },
+      profilePhotoUrl,
+      coverPhotoUrl
     };
 
-    return res.status(200).json({ success: true, profile });
+    return res.status(200).json({ success: true, profile: updatedProfile });
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({
@@ -102,7 +112,6 @@ exports.getMyProfile = async (req, res) => {
     });
   }
 };
-
 
 // Update profile
 exports.updateProfile = async (req, res) => {
@@ -201,19 +210,25 @@ exports.updateProfile = async (req, res) => {
       profile = await ProfileModel.create(updatedData);
     }
 
+    // Build response with photo URLs
     const responseProfile = profile.toObject();
-    if (profile.profilePhoto)
-      responseProfile.profilePhotoUrl = `/uploads/profile/${path.basename(profile.profilePhoto)}`;
-    if (profile.coverPhoto)
-      responseProfile.coverPhotoUrl = `/uploads/cover/${path.basename(profile.coverPhoto)}`;
+    responseProfile.profilePhotoUrl = profile.profilePhoto 
+      ? `/uploads/profile/${path.basename(profile.profilePhoto)}` 
+      : '/default-profile.jpg';
+    responseProfile.coverPhotoUrl = profile.coverPhoto 
+      ? `/uploads/cover/${path.basename(profile.coverPhoto)}` 
+      : '/default-cover.jpg';
 
-    res.status(200).json({ success: true, profile: responseProfile, message: "Profile updated successfully" });
+    res.status(200).json({ 
+      success: true, 
+      profile: responseProfile, 
+      message: "Profile updated successfully" 
+    });
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };
-
 
 // Get profile by post author ID
 exports.getPostAuthorProfile = async (req, res) => {
@@ -228,54 +243,95 @@ exports.getPostAuthorProfile = async (req, res) => {
       return res.status(200).json({
         success: true,
         profile: {
+          userId: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
-          stats: { followers: 0, following: 0, posts: 0 }
+          stats: { connections: 0, posts: 0 },
+          profilePhotoUrl: '/default-profile.jpg',
+          coverPhotoUrl: '/default-cover.jpg'
         }
       });
     }
 
-    if (profile.profilePhoto) profile.profilePhotoUrl = `/uploads/profile/${path.basename(profile.profilePhoto)}`;
-    if (profile.coverPhoto) profile.coverPhotoUrl = `/uploads/cover/${path.basename(profile.coverPhoto)}`;
-    res.status(200).json({ success: true, profile });
+    // Build photo URLs
+    const profilePhotoUrl = profile.profilePhoto 
+      ? `/uploads/profile/${path.basename(profile.profilePhoto)}` 
+      : '/default-profile.jpg';
+    const coverPhotoUrl = profile.coverPhoto 
+      ? `/uploads/cover/${path.basename(profile.coverPhoto)}` 
+      : '/default-cover.jpg';
+
+    res.status(200).json({ 
+      success: true, 
+      profile: {
+        ...profile,
+        profilePhotoUrl,
+        coverPhotoUrl
+      } 
+    });
   } catch (error) {
     console.error("Error fetching post author profile:", error);
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 };
 
-
-
 // Get user's connections
 exports.getUserConnections = async (req, res) => {
   try {
     const userId = req.params.userId || req.user._id;
+
     const connections = await Connection.find({
       $or: [
         { requester: userId, status: "accepted" },
         { recipient: userId, status: "accepted" }
       ]
     })
-    .populate("requester", "name email role profilePhoto")
-    .populate("recipient", "name email role profilePhoto");
+    .populate({
+      path: "requester",
+      select: "name email role"
+    })
+    .populate({
+      path: "recipient",
+      select: "name email role"
+    });
 
-    const formatted = connections.map(conn => {
+    const formatted = await Promise.all(connections.map(async conn => {
       const isRequester = conn.requester._id.equals(userId);
+      const otherUser = isRequester ? conn.recipient : conn.requester;
+
+      // Fetch profile of the other user
+      const profile = await Profile.findOne({ userId: otherUser._id }).lean();
+
+      const profilePhotoUrl = profile?.profilePhoto
+        ? `/uploads/profile/${path.basename(profile.profilePhoto)}`
+        : '/default-profile.jpg';
+
       return {
         _id: conn._id,
-        user: isRequester ? conn.recipient : conn.requester,
+        user: {
+          _id: otherUser._id,
+          name: otherUser.name,
+          email: otherUser.email,
+          role: otherUser.role,
+          profilePhotoUrl
+        },
         status: conn.status,
         createdAt: conn.createdAt
       };
-    });
+    }));
 
     res.status(200).json({ success: true, connections: formatted });
   } catch (error) {
     console.error("Error fetching connections:", error);
-    res.status(500).json({ success: false, message: "Error fetching connections", error: error.message });
+    res.status(500).json({
+      success: false,
+      message: "Error fetching connections",
+      error: error.message
+    });
   }
 };
+
 
 // Remove connection
 exports.removeConnection = async (req, res) => {
@@ -291,9 +347,7 @@ exports.removeConnection = async (req, res) => {
     // Delete the connection
     await Connection.findByIdAndDelete(connectionId);
 
-    
-
-    res.status(200).json({ message: "Connection removed and stats updated" });
+    res.status(200).json({ message: "Connection removed successfully" });
   } catch (error) {
     console.error("Error removing connection:", error);
     res.status(500).json({ message: "Error removing connection" });

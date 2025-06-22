@@ -6,5 +6,4 @@ const { authMiddleware } = require("../middleware/authmiddleware");
 // Get profile by user ID
 router.get("/:userId", authMiddleware, getProfile);
 
-
 module.exports = router;

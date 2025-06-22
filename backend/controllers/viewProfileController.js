@@ -1,69 +1,98 @@
 const { StudentProfile, FacultyProfile, AlumniProfile, Profile } = require("../models/Profile");
 const User = require("../models/User");
+const Connection = require("../models/Connection");
+const path = require("path");
 
-// Get profile by user ID
-const getProfile = async (req, res) => {
+exports.getProfile = async (req, res) => {
   try {
-    const baseProfile = await Profile.findOne({ userId: req.params.userId }).lean();
-    if (!baseProfile) return res.status(404).json({ message: "Profile not found" });
+    const userId = req.params.userId;
+    
+    // First get the user document to access all user fields
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+    // Then try to get the base profile
+    let profile = await Profile.findOne({ userId }).lean();
+    
+    if (!profile) {
+      // If no profile exists, create a basic one from user data
+      profile = {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        stats: { connections: 0, posts: 0 }
+      };
+    }
+
+    // Get role-specific data
     let detailedProfile;
-
-    switch (baseProfile.role) {
+    switch (profile.role) {
       case "student":
-        detailedProfile = await StudentProfile.findOne({ userId: req.params.userId })
-          .populate("userId") // Populate full user object
-          .lean();
+        detailedProfile = await StudentProfile.findOne({ userId }).lean();
+        // Include registration number from User model if not in profile
+        if (!detailedProfile?.regNumber && user.regNumber) {
+          detailedProfile = detailedProfile || {};
+          detailedProfile.regNumber = user.regNumber;
+        }
         break;
       case "faculty":
-        detailedProfile = await FacultyProfile.findOne({ userId: req.params.userId })
-          .populate("userId")
-          .lean();
+        detailedProfile = await FacultyProfile.findOne({ userId }).lean();
+        // Include faculty ID from User model if not in profile
+        if (!detailedProfile?.facultyId && user.facultyId) {
+          detailedProfile = detailedProfile || {};
+          detailedProfile.facultyId = user.facultyId;
+        }
         break;
       case "alumni":
-        detailedProfile = await AlumniProfile.findOne({ userId: req.params.userId })
-          .populate("userId")
-          .lean();
+        detailedProfile = await AlumniProfile.findOne({ userId }).lean();
         break;
       default:
-        detailedProfile = baseProfile;
+        detailedProfile = {};
     }
 
-    if (!detailedProfile) return res.status(404).json({ message: "Detailed profile not found" });
+    // Count connections
+    const connectionCount = await Connection.countDocuments({
+      $or: [
+        { requester: userId, status: 'accepted' },
+        { recipient: userId, status: 'accepted' }
+      ]
+    });
 
-    // Merge base and detailed profiles
+    // Build photo URLs
+    const profilePhotoUrl = profile.profilePhoto 
+      ? `/uploads/profile/${path.basename(profile.profilePhoto)}` 
+      : '/default-profile.jpg';
+    const coverPhotoUrl = profile.coverPhoto 
+      ? `/uploads/cover/${path.basename(profile.coverPhoto)}` 
+      : '/default-cover.jpg';
+
+    // Merge all data - user data takes precedence over profile data
     const fullProfile = {
-      ...baseProfile,
+      ...profile,
       ...detailedProfile,
-      profilePhotoUrl: detailedProfile.profilePhoto
-        ? `/uploads/profile/${detailedProfile.profilePhoto}`
-        : "/default-profile.jpg",
-      coverPhotoUrl: detailedProfile.coverPhoto
-        ? `/uploads/cover/${detailedProfile.coverPhoto}`
-        : "/default-cover.jpg",
+      // Include important fields from User model
+      regNumber: user.regNumber || detailedProfile?.regNumber,
+      facultyId: user.facultyId || detailedProfile?.facultyId,
+      department: user.department || detailedProfile?.department,
+      batch: user.batch || detailedProfile?.batch,
+      company: user.company || detailedProfile?.company,
+      passedOutBatch: user.passedOutBatch || detailedProfile?.passedOutBatch,
+      stats: {
+        ...profile.stats,
+        connections: connectionCount
+      },
+      profilePhotoUrl,
+      coverPhotoUrl
     };
 
-    // Fallback: use fields from User model if not present in profile
-    const user = detailedProfile.userId || (await User.findById(req.params.userId).lean());
-
-    if (user) {
-      fullProfile.name = fullProfile.name || user.name;
-      fullProfile.email = fullProfile.email || user.email;
-      fullProfile.batch = fullProfile.batch || user.batch;
-      fullProfile.regNumber = fullProfile.regNumber || user.regNumber;
-      fullProfile.facultyId = fullProfile.facultyId || user.facultyId;
-      fullProfile.department = fullProfile.department || user.department;
-      fullProfile.company = fullProfile.company || user.company;
-      fullProfile.passedOutBatch = fullProfile.passedOutBatch || user.passedOutBatch;
-    }
-
-    return res.status(200).json(fullProfile);
+    res.status(200).json(fullProfile);
   } catch (error) {
     console.error("Error fetching profile:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ 
+      message: "Server error",
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
-};
-
-module.exports = {
-  getProfile,
 };

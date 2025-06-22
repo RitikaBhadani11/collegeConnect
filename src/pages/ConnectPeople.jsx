@@ -28,7 +28,6 @@ const ConnectPeople = () => {
 
   const isSearching = searchQuery.trim().length > 0;
 
-  // Fetch pending connection requests
   const fetchConnectionRequests = async () => {
     try {
       setLoading((prev) => ({ ...prev, requests: true }));
@@ -41,7 +40,6 @@ const ConnectPeople = () => {
     }
   };
 
-  // Fetch suggested users
   const fetchSuggestedUsers = async () => {
     try {
       setLoading((prev) => ({ ...prev, suggestions: true }));
@@ -54,7 +52,6 @@ const ConnectPeople = () => {
     }
   };
 
-  // Search users
   const searchUsers = async () => {
     if (!searchQuery.trim()) return;
     try {
@@ -71,7 +68,6 @@ const ConnectPeople = () => {
     }
   };
 
-  // Send connection request
   const handleFollow = async (userId) => {
     try {
       await axios.post(
@@ -85,14 +81,11 @@ const ConnectPeople = () => {
       } else {
         setSuggestedUsers((prev) => prev.filter((u) => u._id !== userId));
       }
-
-      // No need to manually check reverse connection if backend handles it
     } catch (err) {
       console.error("Error sending follow request:", err);
     }
   };
 
-  // Accept/reject a request
   const handleRequestResponse = async (requestId, action) => {
     try {
       await axios.put(
@@ -103,7 +96,6 @@ const ConnectPeople = () => {
 
       setConnectionRequests((prev) => prev.filter((r) => r._id !== requestId));
 
-      // Refresh suggestions after accepting
       if (action === "accept") {
         fetchSuggestedUsers();
       }
@@ -180,6 +172,9 @@ const ConnectPeople = () => {
                   <UserCard
                     key={user._id}
                     user={user}
+                    profilePhotoUrl={
+                      user.profile?.profilePhotoUrl || "/default-profile.jpg"
+                    }
                     onFollow={() => handleFollow(user._id)}
                   />
                 ))}
@@ -192,14 +187,12 @@ const ConnectPeople = () => {
           </div>
         )}
 
-        {/* Connection Requests & Suggestions */}
+        {/* Requests & Suggestions */}
         {!isSearching && (
           <div className="space-y-10">
             {/* Connection Requests */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Connection Requests
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Connection Requests</h2>
 
               {loading.requests ? (
                 <div className="text-center py-4">
@@ -209,9 +202,12 @@ const ConnectPeople = () => {
               ) : connectionRequests.length > 0 ? (
                 <div className="space-y-4">
                   {connectionRequests.map((request) => (
-                    <ConnectionRequest
-                      key={request._id}
-                      request={request}
+                  <ConnectionRequest
+  key={request._id}
+  request={request}
+  profilePhotoUrl={
+    request.requester?.profilePhotoUrl || "/default-profile.jpg"
+  }
                       onAccept={() => handleRequestResponse(request._id, "accept")}
                       onReject={() => handleRequestResponse(request._id, "reject")}
                     />
@@ -224,7 +220,7 @@ const ConnectPeople = () => {
               )}
             </div>
 
-            {/* Suggested Users */}
+            {/* Suggestions */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-6">
                 People You May Know
@@ -241,6 +237,9 @@ const ConnectPeople = () => {
                     <UserCard
                       key={user._id}
                       user={user}
+                      profilePhotoUrl={
+                        user.profile?.profilePhotoUrl || "/default-profile.jpg"
+                      }
                       onFollow={() => handleFollow(user._id)}
                     />
                   ))}

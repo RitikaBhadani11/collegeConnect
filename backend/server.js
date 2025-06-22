@@ -1,4 +1,3 @@
-
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -65,10 +64,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Serve static files
-app.use(express.static(path.join(__dirname, "public")));
-app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 app.use("/uploads/profile", express.static(path.join(__dirname, "public", "uploads", "profile")));
 app.use("/uploads/cover", express.static(path.join(__dirname, "public", "uploads", "cover")));
+app.use("/default-profile.jpg", express.static(path.join(__dirname, "public", "default-profile.jpg")));
+app.use("/default-cover.jpg", express.static(path.join(__dirname, "public", "default-cover.jpg")));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)

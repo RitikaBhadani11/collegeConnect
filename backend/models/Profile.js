@@ -1,10 +1,9 @@
-
-
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const path = require("path");
 
 const ProfileSchema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: "User" }, // REMOVE unique: true
+  userId: { type: Schema.Types.ObjectId, ref: "User" },
   name: { type: String, required: true },
   email: { type: String, required: true },
   role: { type: String, enum: ["student", "faculty", "alumni"], required: true },
@@ -13,26 +12,30 @@ const ProfileSchema = new Schema({
   about: { type: String, default: "" },
   skills: { type: [String], default: [] },
   stats: {
-  connections: { type: Number, default: 0 },
-  posts: { type: Number, default: 0 }
-}
+    connections: { type: Number, default: 0 },
+    posts: { type: Number, default: 0 }
+  }
 }, {
   timestamps: true,
-  discriminatorKey: 'roleType'
+  discriminatorKey: 'roleType',
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Virtuals for image URLs
-ProfileSchema.virtual('profilePhotoUrl').get(function () {
-  return this.profilePhoto ? `/uploads/profile/${this.profilePhoto}` : '/default-profile.jpg';
+ProfileSchema.virtual('profilePhotoUrl').get(function() {
+  if (!this.profilePhoto) return '/default-profile.jpg';
+  return `/uploads/profile/${path.basename(this.profilePhoto)}`;
 });
 
-ProfileSchema.virtual('coverPhotoUrl').get(function () {
-  return this.coverPhoto ? `/uploads/cover/${this.coverPhoto}` : '/default-cover.jpg';
+ProfileSchema.virtual('coverPhotoUrl').get(function() {
+  if (!this.coverPhoto) return '/default-cover.jpg';
+  return `/uploads/cover/${path.basename(this.coverPhoto)}`;
 });
 
 const Profile = mongoose.model("Profile", ProfileSchema);
 
-// ✅ Student Profile
+// Student Profile
 const StudentProfile = Profile.discriminator("student", new Schema({
   branch: { type: String, default: "" },
   yearOfStudy: { type: String, default: "" },
@@ -41,7 +44,7 @@ const StudentProfile = Profile.discriminator("student", new Schema({
   regNumber: { type: String, default: "" }
 }));
 
-// ✅ Faculty Profile
+// Faculty Profile
 const FacultyProfile = Profile.discriminator("faculty", new Schema({
   department: { type: String, default: "" },
   designation: { type: String, default: "" },
@@ -49,7 +52,7 @@ const FacultyProfile = Profile.discriminator("faculty", new Schema({
   facultyId: { type: String, default: "" }
 }));
 
-// ✅ Alumni Profile
+// Alumni Profile
 const AlumniProfile = Profile.discriminator("alumni", new Schema({
   currentJobTitle: { type: String, default: "" },
   company: { type: String, default: "" },

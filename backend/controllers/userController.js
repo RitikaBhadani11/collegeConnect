@@ -1,3 +1,4 @@
+const path = require("path");
 const User = require("../models/User");
 const Connection = require("../models/Connection");
 const { Profile } = require("../models/Profile");
@@ -8,10 +9,37 @@ exports.getConnectionRequests = async (req, res) => {
     const requests = await Connection.find({
       recipient: req.user._id,
       status: "pending",
-    }).populate("requester", "name email role profilePhotoUrl");
+    }).populate({
+      path: "requester",
+      select: "name email role",
+    });
 
-    res.json({ requests });
+    const formattedRequests = await Promise.all(
+      requests.map(async (request) => {
+        const profileDoc = await Profile.findOne({ userId: request.requester._id });
+const profile = profileDoc ? profileDoc.toObject() : null;
+
+const profilePhotoUrl = profile?.profilePhoto
+  ? `/uploads/profile/${path.basename(profile.profilePhoto)}`
+  : "/default-profile.jpg";
+
+
+        return {
+          _id: request._id,
+          requester: {
+            _id: request.requester._id,
+            name: request.requester.name,
+            email: request.requester.email,
+            role: request.requester.role,
+            profilePhotoUrl,
+          },
+        };
+      })
+    );
+
+    res.json({ requests: formattedRequests });
   } catch (error) {
+    console.error("Error in getConnectionRequests:", error);
     res.status(500).json({ message: "Error fetching connection requests" });
   }
 };
@@ -31,11 +59,24 @@ exports.getSuggestedUsers = async (req, res) => {
 
     const suggestedUsers = await User.find({
       _id: { $ne: userId, $nin: connectedUserIds },
-    })
-      .select("name email role profilePhotoUrl department batch")
-      .limit(10);
+    }).select("_id name email role");
 
-    res.json({ users: suggestedUsers });
+    const usersWithProfilePhotos = await Promise.all(
+      suggestedUsers.map(async (user) => {
+        const profile = await Profile.findOne({ userId: user._id });
+        return {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profilePhotoUrl: profile?.profilePhoto
+            ? `/uploads/profile/${path.basename(profile.profilePhoto)}`
+            : "/default-profile.jpg",
+        };
+      })
+    );
+
+    res.json({ users: usersWithProfilePhotos });
   } catch (error) {
     res.status(500).json({ message: "Error fetching suggested users" });
   }
@@ -54,30 +95,31 @@ exports.followUser = async (req, res) => {
     const existing = await Connection.findOne({
       $or: [
         { requester: requesterId, recipient: recipientId },
-        { requester: recipientId, recipient: requesterId }
-      ]
+        { requester: recipientId, recipient: requesterId },
+      ],
     });
 
     if (existing) {
-      return res.status(400).json({ message: "Connection already exists or pending" });
+      return res
+        .status(400)
+        .json({ message: "Connection already exists or pending" });
     }
 
     const connection = new Connection({
       requester: requesterId,
       recipient: recipientId,
-      status: "pending"
+      status: "pending",
     });
 
     await connection.save();
 
     res.status(200).json({ success: true, message: "Follow request sent" });
   } catch (error) {
-    console.error("❌ Error in followUser:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// ✅ Respond to follow request (accept/reject)
+// Respond to follow request (accept/reject)
 exports.respondToFollowRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -97,10 +139,7 @@ exports.respondToFollowRequest = async (req, res) => {
       request.status = "accepted";
       await request.save();
 
-      console.log("✅ Accepting connection between:", userId, "and", request.requester);
-
-      // Always increment both users' connection count
-      const [res1, res2] = await Promise.all([
+      await Promise.all([
         Profile.findOneAndUpdate(
           { userId },
           { $inc: { "stats.connections": 1 } },
@@ -113,8 +152,6 @@ exports.respondToFollowRequest = async (req, res) => {
         ),
       ]);
 
-      console.log("🔁 Updated profiles:", res1?._id, res2?._id);
-
       return res.status(200).json({ success: true, message: "Connection accepted" });
     }
 
@@ -124,10 +161,8 @@ exports.respondToFollowRequest = async (req, res) => {
     }
 
     res.status(400).json({ success: false, message: "Invalid action" });
-
   } catch (error) {
-    console.error("❌ Error responding to follow request:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -158,9 +193,24 @@ exports.searchUsers = async (req, res) => {
         },
         { _id: { $ne: userId, $nin: connectedUserIds } },
       ],
-    }).select("name email role profilePhotoUrl department batch");
+    }).select("_id name email role");
 
-    res.json({ users });
+    const usersWithProfilePhotos = await Promise.all(
+      users.map(async (user) => {
+        const profile = await Profile.findOne({ userId: user._id });
+        return {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profilePhotoUrl: profile?.profilePhoto
+            ? `/uploads/profile/${path.basename(profile.profilePhoto)}`
+            : "/default-profile.jpg",
+        };
+      })
+    );
+
+    res.json({ users: usersWithProfilePhotos });
   } catch (error) {
     res.status(500).json({ message: "Error searching users" });
   }
@@ -176,17 +226,27 @@ exports.getConnections = async (req, res) => {
         { requester: userId, status: "accepted" },
         { recipient: userId, status: "accepted" },
       ],
-    })
-      .populate("requester", "name email role profilePhotoUrl")
-      .populate("recipient", "name email role profilePhotoUrl");
+    });
 
-    const followers = connections
-      .filter((conn) => conn.recipient.equals(userId))
-      .map((conn) => conn.requester);
+    const followers = [];
+    const following = [];
 
-    const following = connections
-      .filter((conn) => conn.requester.equals(userId))
-      .map((conn) => conn.recipient);
+    for (const conn of connections) {
+      const profileUserId = conn.requester.equals(userId) ? conn.recipient : conn.requester;
+      const profile = await Profile.findOne({ userId: profileUserId });
+      const formattedUser = {
+        _id: profileUserId,
+        profilePhotoUrl: profile?.profilePhoto
+          ? `/uploads/profile/${path.basename(profile.profilePhoto)}`
+          : "/default-profile.jpg",
+      };
+
+      if (conn.recipient.equals(userId)) {
+        followers.push(formattedUser);
+      } else {
+        following.push(formattedUser);
+      }
+    }
 
     res.json({ followers, following });
   } catch (error) {
@@ -204,7 +264,7 @@ exports.checkConnectionStatus = async (req, res) => {
       $or: [
         { requester: userId1, recipient: userId2 },
         { requester: userId2, recipient: userId1 },
-      ]
+      ],
     });
 
     if (!connection) {
@@ -213,10 +273,9 @@ exports.checkConnectionStatus = async (req, res) => {
 
     return res.json({
       exists: true,
-      status: connection.status
+      status: connection.status,
     });
   } catch (error) {
-    console.error("Error checking connection status:", error);
     res.status(500).json({ message: "Error checking connection status" });
   }
 };

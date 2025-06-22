@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import defaultAvatar from "../assets/default-avatar.png";
+
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
@@ -20,9 +22,19 @@ const ViewProfile = ({ userId, onClose }) => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(`http://localhost:5005/api/profile/${userId}`, {
-          headers: { Authorization: token },
+          headers: { 
+            Authorization: `Bearer ${token}` // Fixed authorization header
+          },
         });
-        setProfile(res.data);
+        setProfile({
+          ...res.data,
+          // Ensure profilePhotoUrl has full URL if it's not already
+          profilePhotoUrl: res.data.profilePhotoUrl 
+            ? res.data.profilePhotoUrl.startsWith('http') 
+              ? res.data.profilePhotoUrl 
+              : `http://localhost:5005${res.data.profilePhotoUrl}`
+            : defaultAvatar
+        });
       } catch (error) {
         console.error("Error fetching profile:", error);
         toast.error("Failed to load profile");
@@ -79,19 +91,15 @@ const ViewProfile = ({ userId, onClose }) => {
         <div className="p-6">
           <div className="flex flex-col md:flex-row items-start gap-8">
             <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden mx-auto md:mx-0">
-              <img
-                src={
-                  profile.profilePhotoUrl
-                    ? `http://localhost:5005${profile.profilePhotoUrl}`
-                    : "https://via.placeholder.com/150"
-                }
-                alt={profile.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://via.placeholder.com/150";
-                }}
-              />
+               <img
+      src={profile.profilePhotoUrl || defaultAvatar}
+      alt={profile.name}
+      className="w-full h-full object-cover"
+      onError={(e) => {
+        e.target.onerror = null;
+        e.target.src = defaultAvatar;
+      }}
+    />
             </div>
 
             <div className="flex-1 text-center md:text-left">
