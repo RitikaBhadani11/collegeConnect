@@ -3,6 +3,16 @@ const User = require("../models/User");
 const Connection = require("../models/Connection");
 const fs = require("fs");
 const path = require("path");
+const getProfilePhotoUrl = (profile) => {
+  if (!profile?.profilePhoto) return '/default-profile.jpg';
+  return `/uploads/profile/${path.basename(profile.profilePhoto)}`;
+};
+
+// Helper function to get cover photo URL
+const getCoverPhotoUrl = (profile) => {
+  if (!profile?.coverPhoto) return '/default-cover.jpg';
+  return `/uploads/cover/${path.basename(profile.coverPhoto)}`;
+};
 
 // Increment post count
 exports.incrementPostCount = async (req, res) => {
@@ -40,23 +50,30 @@ exports.decrementPostCount = async (req, res) => {
 
 exports.getMyProfile = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user._id;
+    const userId = req.user._id; // Always use authenticated user's ID
+
+    // Get user first to verify existence
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
 
     // Try to get profile
-    const profile = await Profile.findOne({ userId }).lean();
+    let profile = await Profile.findOne({ userId }).lean();
 
-    // If profile doesn't exist, construct a fallback from user data
+    // Count connections
+    const connectionCount = await Connection.countDocuments({
+      $or: [
+        { requester: userId, status: 'accepted' },
+        { recipient: userId, status: 'accepted' }
+      ]
+    });
+
+    // If no profile exists, create a basic response
     if (!profile) {
-      const user = await User.findById(userId);
-      if (!user) return res.status(404).json({ success: false, message: "User not found" });
-
-      const connectionCount = await Connection.countDocuments({
-        $or: [
-          { requester: userId, status: 'accepted' },
-          { recipient: userId, status: 'accepted' }
-        ]
-      });
-
       return res.status(200).json({
         success: true,
         profile: {
@@ -68,41 +85,25 @@ exports.getMyProfile = async (req, res) => {
             connections: connectionCount,
             posts: 0
           },
-          profilePhotoUrl: '/default-profile.jpg',
-          coverPhotoUrl: '/default-cover.jpg'
+          profilePhotoUrl: getProfilePhotoUrl(null),
+          coverPhotoUrl: getCoverPhotoUrl(null)
         }
       });
     }
 
-    // Profile exists, count accepted connections
-    const connectionCount = await Connection.countDocuments({
-      $or: [
-        { requester: userId, status: 'accepted' },
-        { recipient: userId, status: 'accepted' }
-      ]
+    // Return complete profile
+    res.status(200).json({
+      success: true,
+      profile: {
+        ...profile,
+        stats: {
+          ...profile.stats,
+          connections: connectionCount
+        },
+        profilePhotoUrl: getProfilePhotoUrl(profile),
+        coverPhotoUrl: getCoverPhotoUrl(profile)
+      }
     });
-
-    // Build profilePhoto and coverPhoto URLs
-    const profilePhotoUrl = profile.profilePhoto 
-      ? `/uploads/profile/${path.basename(profile.profilePhoto)}` 
-      : '/default-profile.jpg';
-    
-    const coverPhotoUrl = profile.coverPhoto 
-      ? `/uploads/cover/${path.basename(profile.coverPhoto)}` 
-      : '/default-cover.jpg';
-
-    // Update stats with live connection count
-    const updatedProfile = {
-      ...profile,
-      stats: {
-        ...profile.stats,
-        connections: connectionCount
-      },
-      profilePhotoUrl,
-      coverPhotoUrl
-    };
-
-    return res.status(200).json({ success: true, profile: updatedProfile });
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({

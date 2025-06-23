@@ -8,11 +8,24 @@ const {
   sendMessage
 } = require('../controllers/chatController');
 const { authMiddleware } = require('../middleware/authmiddleware');
+const upload = require('../middleware/upload');
 
-router.get('/search', authMiddleware, searchUsers);
-router.get('/conversations', authMiddleware, getConversations);
-router.post('/conversation', authMiddleware, startConversation);
-router.get('/messages/:id', authMiddleware, getMessages);
-router.post('/message', authMiddleware, sendMessage);
+// Apply auth middleware to all routes
+router.use(authMiddleware);
+
+// Search users
+router.get('/search', searchUsers);
+
+// Get conversations
+router.get('/conversations', getConversations);
+
+// Start new conversation
+router.post('/conversation', startConversation);
+
+// Get messages
+router.get('/messages/:id', getMessages);
+
+// Send message (with optional file upload)
+router.post('/message', upload.single('file'), sendMessage);
 
 module.exports = router;

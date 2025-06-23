@@ -7,7 +7,7 @@ const morgan = require("morgan");
 const bodyParser = require("body-parser");
 const http = require('http');
 const socketIo = require('socket.io');
-
+const jwt = require('jsonwebtoken');
 dotenv.config();
 
 const authRoutes = require("./routes/authRoutes");
@@ -19,31 +19,110 @@ const postRoutes = require("./routes/postRoutes");
 const userRoutes = require("./routes/userRoutes");
 const chatRoutes = require('./routes/chatRoutes');
 const viewProfileRoutes = require("./routes/viewProfileRoutes");
-
+const notificationRoutes = require("./routes/notificationRoutes");
 const app = express();
 const server = http.createServer(app);
+const { Server } = require('socket.io');
+
 
 // Configure Socket.io
-const io = socketIo(server, {
+const io = new Server(server, {
+  path: '/socket.io', // matches client
   cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
+    origin: 'http://localhost:5173', // IMPORTANT!
+    methods: ['GET', 'POST'],
     credentials: true
   }
 });
 
-// Socket.io connection handler
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
 
-  socket.on('join', (userId) => {
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+
+// Socket.io connection handler with authentication
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  console.log('Socket auth token:', token); // <-- DEBUG
+
+  if (!token) {
+    return next(new Error('Authentication error: Missing token'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    next();
+  } catch (err) {
+    console.error('JWT Error:', err);
+    next(new Error('Authentication error'));
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id, 'User:', socket.userId);
+
+  // Join user's personal room
+  socket.join(socket.userId);
+
+  socket.on('joinConversation', (conversationId) => {
+    socket.join(conversationId);
+    console.log(`User ${socket.userId} joined conversation ${conversationId}`);
   });
 
-  socket.on('sendMessage', (message) => {
-    const { conversationId, senderId, content } = message;
-    io.to(conversationId).emit('receiveMessage', message);
+  socket.on('sendMessage', async (messageData) => {
+    try {
+      // Verify user is part of the conversation
+      const conversation = await Conversation.findOne({
+        _id: messageData.conversationId,
+        participants: socket.userId
+      });
+
+      if (!conversation) {
+        return socket.emit('error', 'You are not part of this conversation');
+      }
+
+      // Create and save the message
+      const message = new Message({
+        conversation: messageData.conversationId,
+        sender: socket.userId,
+        content: messageData.content
+      });
+      await message.save();
+
+      // Populate sender info
+      const populatedMessage = await message.populate('sender', 'name image role');
+
+      // Update conversation's last message
+      conversation.lastMessage = {
+        content: messageData.content,
+        createdAt: new Date()
+      };
+      await conversation.save();
+
+      // Emit to all participants in the conversation
+      io.to(messageData.conversationId).emit('receiveMessage', populatedMessage);
+
+      // Create notification for other participants
+      const otherParticipants = conversation.participants.filter(
+        p => p.toString() !== socket.userId.toString()
+      );
+
+      for (const participantId of otherParticipants) {
+        const notification = new Notification({
+          recipient: participantId,
+          sender: socket.userId,
+          type: 'message',
+          content: `New message in your conversation`,
+          relatedEntity: messageData.conversationId,
+          onModel: 'Conversation'
+        });
+        await notification.save();
+
+        // Send notification to recipient if online
+        io.to(participantId.toString()).emit('newNotification', notification);
+      }
+    } catch (error) {
+      console.error('Error handling message:', error);
+      socket.emit('error', 'Failed to send message');
+    }
   });
 
   socket.on('disconnect', () => {
@@ -51,9 +130,11 @@ io.on('connection', (socket) => {
   });
 });
 
+
+
 // Middleware
 app.use(cors({
-  origin: "*",
+  origin: "http://localhost:5173",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -91,6 +172,8 @@ app.use("/api/posts", postRoutes);
 app.use("/api/users", userRoutes);
 app.use('/api/chat', chatRoutes);
 app.use("/api/profile", viewProfileRoutes);
+app.use("/api/notifications", notificationRoutes);
+
 
 // Error handling
 app.use((err, req, res, next) => {
