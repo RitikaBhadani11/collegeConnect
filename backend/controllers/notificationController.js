@@ -1,47 +1,31 @@
 const Notification = require('../models/Notification');
 
-// Get user notifications
+// Fetch notifications for logged-in user
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({
-      recipient: req.user._id
-    })
-    .populate('sender', 'name email image')
-    .sort({ createdAt: -1 });
+    const notifications = await Notification.find({ recipient: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
 
-    const unreadCount = await Notification.countDocuments({
-      recipient: req.user._id,
-      read: false
-    });
+    const unreadCount = notifications.filter(n => !n.read).length;
 
-    res.json({ notifications, unreadCount });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    res.json({ success: true, notifications, unreadCount });
+  } catch (err) {
+    console.error('Fetch notifications error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
   }
 };
 
-// Mark notification as read
-exports.markAsRead = async (req, res) => {
+// Mark all as read
+exports.markAllAsRead = async (req, res) => {
   try {
-    const { notificationId } = req.params;
-    
-    const notification = await Notification.findOneAndUpdate(
-      {
-        _id: notificationId,
-        recipient: req.user._id
-      },
-      { $set: { read: true } },
-      { new: true }
+    await Notification.updateMany(
+      { recipient: req.user._id, read: false },
+      { $set: { read: true } }
     );
-
-    if (!notification) {
-      return res.status(404).json({ message: 'Notification not found' });
-    }
-
-    res.json({ notification });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    res.json({ success: true, message: 'Marked all as read' });
+  } catch (err) {
+    console.error('Mark as read error:', err);
+    res.status(500).json({ success: false, message: 'Failed to mark notifications' });
   }
 };

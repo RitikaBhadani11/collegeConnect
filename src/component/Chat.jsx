@@ -8,6 +8,7 @@ import { IoMdClose } from 'react-icons/io';
 import EmojiPicker from 'emoji-picker-react';
 import io from 'socket.io-client';
 
+const backendUrl = import.meta.env.VITE_API_URL;
 const defaultProfileImage = '/default-profile.jpg';
 
 const ChatPage = () => {
@@ -30,69 +31,67 @@ const ChatPage = () => {
   const socketRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Get participant profile image
-  const getProfileImage = (participant) => {
-    return participant?.profilePhotoUrl || defaultProfileImage;
+  const getProfileImage = (user) => {
+    return user?.profilePhotoUrl?.startsWith('/uploads')
+      ? `${backendUrl}${user.profilePhotoUrl}`
+      : defaultProfileImage;
   };
 
-  // Initialize WebSocket connection
-// Replace your useEffect socket initialization with this:
-useEffect(() => {
-  if (!user) return;
-
-  const socket = io(import.meta.env.VITE_API_URL, {
-    path: '/socket.io',
-    auth: {
-      token: localStorage.getItem('token')
-    },
-    transports: ['websocket'],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
-    autoConnect: true,
-    forceNew: true
-  });
-
-  socketRef.current = socket;
-
-  socket.on('connect', () => {
-    console.log('Connected to WebSocket');
-    setError(null);
-    // Join the user's room if needed
-    socket.emit('join', { userId: user._id });
-  });
-
-  socket.on('receiveMessage', (message) => {
-    if (selectedConversation && message.conversation === selectedConversation._id) {
-      setMessages(prev => [...prev, message]);
-    }
-    fetchConversations();
-  });
-
-  socket.on('connect', () => {
-  console.log('Connected to WebSocket');
-  setIsConnected(true);
-  setError(null);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('Disconnected:', reason);
-    if (reason === 'io server disconnect') {
-      // The server forcibly disconnected the socket, need to manually reconnect
-      socket.connect();
-    }
-  });
-
-  return () => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-}, [user, selectedConversation]);
 
-  // Search users
+  useEffect(() => {
+    if (selectedConversation && socketRef.current?.connected) {
+      socketRef.current.emit('joinConversation', selectedConversation._id);
+      console.log('➡️ Joined conversation:', selectedConversation._id);
+    }
+  }, [selectedConversation]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const socket = io(backendUrl, {
+      path: '/socket.io',
+      auth: { token: localStorage.getItem('token') },
+      transports: ['websocket'],
+      reconnection: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ Connected to WebSocket:', socket.id);
+      setIsConnected(true);
+      socket.emit('join', { userId: user._id });
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('❌ Connection Error:', err.message);
+      setError('Socket connection failed');
+    });
+
+    socket.on('receiveMessage', (message) => {
+      console.log('📩 New Message:', message);
+      if (selectedConversation && message.conversation === selectedConversation._id) {
+        setMessages(prev => [...prev, message]);
+      }
+      fetchConversations();
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('⚠️ Disconnected from WebSocket:', reason);
+      setIsConnected(false);
+    });
+
+    return () => {
+      if (socket && socket.connected) {
+        console.log('🧹 Disconnecting socket');
+        socket.disconnect();
+      }
+    };
+  }, [user]);
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -101,15 +100,13 @@ useEffect(() => {
 
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/search?query=${searchQuery}`, {
+      const response = await fetch(`${backendUrl}/api/chat/search?query=${searchQuery}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
       });
-      
-      if (!response.ok) {
-        throw new Error('Search failed');
-      }
+
+      if (!response.ok) throw new Error('Search failed');
 
       const data = await response.json();
       setSearchResults(data.users || []);
@@ -122,19 +119,16 @@ useEffect(() => {
     }
   };
 
-  // Get user conversations
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/conversations`, {
+      const response = await fetch(`${backendUrl}/api/chat/conversations`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch conversations');
-      }
+
+      if (!response.ok) throw new Error('Failed to fetch conversations');
 
       const data = await response.json();
       setConversations(data.conversations || []);
@@ -147,22 +141,19 @@ useEffect(() => {
     }
   };
 
-  // Start or select conversation
   const handleSelectUser = async (userId) => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/conversation`, {
+      const response = await fetch(`${backendUrl}/api/chat/conversation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({ participantId: userId })
+        body: JSON.stringify({ participantId: userId }),
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create conversation');
-      }
+
+      if (!response.ok) throw new Error('Failed to create conversation');
 
       const data = await response.json();
       setSelectedConversation(data.conversation);
@@ -178,19 +169,16 @@ useEffect(() => {
     }
   };
 
-  // Fetch messages for a conversation
   const fetchMessages = async (conversationId) => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/messages/${conversationId}`, {
+      const response = await fetch(`${backendUrl}/api/chat/messages/${conversationId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch messages');
-      }
+
+      if (!response.ok) throw new Error('Failed to fetch messages');
 
       const data = await response.json();
       setMessages(data.messages || []);
@@ -203,39 +191,30 @@ useEffect(() => {
     }
   };
 
-  // Send message
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && !selectedFile) || !selectedConversation) return;
 
     try {
       setIsLoading(true);
-      
       const formData = new FormData();
-      if (selectedFile) {
-        formData.append('file', selectedFile);
-      }
-      if (newMessage.trim()) {
-        formData.append('content', newMessage);
-      }
+      if (selectedFile) formData.append('file', selectedFile);
+      if (newMessage.trim()) formData.append('content', newMessage);
       formData.append('conversationId', selectedConversation._id);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/message`, {
+      const response = await fetch(`${backendUrl}/api/chat/message`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
-        body: formData
+        body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
+      if (!response.ok) throw new Error('Failed to send message');
 
       const data = await response.json();
       setMessages(prev => [...prev, data.message]);
       setNewMessage('');
       setSelectedFile(null);
-      
       await fetchConversations();
       setError(null);
     } catch (error) {
@@ -246,11 +225,10 @@ useEffect(() => {
     }
   };
 
-  // Handle file selection
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
         setError('File size too large. Maximum 10MB allowed.');
         return;
       }
@@ -259,20 +237,17 @@ useEffect(() => {
     }
   };
 
-  // Block user
   const blockUser = async (userId) => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/block/${userId}`, {
+      const response = await fetch(`${backendUrl}/api/users/block/${userId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to block user');
-      }
+
+      if (!response.ok) throw new Error('Failed to block user');
 
       await fetchConversations();
       setSelectedConversation(null);
@@ -286,18 +261,11 @@ useEffect(() => {
     }
   };
 
-  // Add emoji to message
   const onEmojiClick = (emojiData) => {
     setNewMessage(prev => prev + emojiData.emoji);
     setShowEmojiPicker(false);
   };
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Initialize component
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -306,12 +274,10 @@ useEffect(() => {
     }
   }, [user, navigate]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Close emoji picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showEmojiPicker && !event.target.closest('.emoji-picker-container')) {
@@ -320,9 +286,7 @@ useEffect(() => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
 
   return (
